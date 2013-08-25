@@ -118,10 +118,35 @@ static int call_boozefn(const char* fn_name, WORD_LIST* args, const char** outpu
 			return atoi(err->value);
 	} else {
 		out = find_variable("booze_out");
-		*output = out ? out->value : NULL;
+		if (output)
+			*output = out ? out->value : NULL;
 		return 0;
 	}
 }
+
+#define BASIC1(name, t1, a1, f1) \
+	static int booze_##name(t1 a1) \
+	{ \
+		WL_DECLINIT1(args, f1, a1); \
+		\
+		return call_boozefn("booze_"#name, args, NULL); \
+	}
+
+#define BASIC2(name, t1, a1, f1, t2, a2, f2) \
+	static int booze_##name(t1 a1, t2 a2) \
+	{ \
+		WL_DECLINIT2(args, f1, a1, f2, a2); \
+		\
+		return call_boozefn("booze_"#name, args, NULL); \
+	}
+
+#define BASIC3(name, t1, a1, f1, t2, a2, f2, t3, a3, f3) \
+	static int booze_##name(t1 a1, t2 a2, t3 a3) \
+	{ \
+		WL_DECLINIT3(args, f1, a1, f2, a2, f3, a3); \
+		\
+		return call_boozefn("booze_"#name, args, NULL); \
+	}
 
 static int booze_getattr(const char* path, struct stat* st)
 {
@@ -142,6 +167,24 @@ static int booze_getattr(const char* path, struct stat* st)
 	                 &st->st_gid, &st->st_rdev, &st->st_size, &st->st_blocks,
 	                 &st->st_atime, &st->st_mtime, &st->st_ctime);
 	return (scanned == 11) ? 0 : -EIO;
+}
+
+BASIC2(access, const char*, path, "%s", int, mask, "%d");
+
+static int booze_readlink(const char* path, char* buf, size_t size)
+{
+	const char* output;
+	int status;
+	WL_DECLINIT1(args, "%s", path);
+
+	status = call_boozefn("booze_readlink", args, &output);
+
+	if (status)
+		return status;
+
+	strncpy(buf, output, size);
+
+	return 0;
 }
 
 static int booze_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
@@ -181,12 +224,27 @@ static int booze_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 	return 0;
 }
 
+BASIC3(mknod, const char*, path, "%s", mode_t, mode, "%d", dev_t, dev, "%d");
+BASIC2(mkdir, const char*, path, "%s", mode_t, mode, "%d");
+BASIC1(unlink, const char*, path, "%s");
+BASIC1(rmdir, const char*, path, "%s");
+BASIC2(symlink, const char*, from, "%s", const char*, to, "%s");
+BASIC2(rename, const char*, from, "%s", const char*, to, "%s");
+BASIC2(link, const char*, from, "%s", const char*, to, "%s");
+BASIC2(chmod, const char*, path, "%s", mode_t, mode, "%d");
+BASIC3(chown, const char*, path, "%s", uid_t, uid, "%d", gid_t, gid, "%d");
+BASIC2(truncate, const char*, path, "%s", off_t, size, "%jd");
+
+static int booze_utimens(const char* path, const struct timespec ts[2])
+{
+	return -ENOSYS;
+}
+
 static int booze_open(const char *path, struct fuse_file_info *fi)
 {
-	const char* output;
 	WL_DECLINIT2(args, "%s", path, "%d", fi->flags);
 
-	return call_boozefn("booze_open", args, &output);
+	return call_boozefn("booze_open", args, NULL);
 }
 
 static int booze_read(const char* path, char* buf, size_t size, off_t offset,
@@ -213,11 +271,81 @@ static int booze_read(const char* path, char* buf, size_t size, off_t offset,
 	return strlen(output);
 }
 
+static int booze_write(const char* path, const char* buf, size_t size, off_t offset,
+                       struct fuse_file_info* fi)
+{
+	return -ENOSYS;
+}
+
+static int booze_statfs(const char* path, struct statvfs* stvfs)
+{
+	return -ENOSYS;
+}
+
+static int booze_release(const char* path, struct fuse_file_info* fi)
+{
+	return -ENOSYS;
+}
+
+static int booze_fsync(const char* path, int datasync, struct fuse_file_info* fi)
+{
+	return -ENOSYS;
+}
+
+static int booze_fallocate(const char* path, int mode, off_t offset, off_t length,
+                           struct fuse_file_info* fi)
+{
+	return -ENOSYS;
+}
+
+static int booze_setxattr(const char* path, const char* name, const char* value,
+                          size_t size, int flags)
+{
+	return -ENOSYS;
+}
+
+static int booze_getxattr(const char* path, const char* name, char* value, size_t size)
+{
+	return -ENOSYS;
+}
+
+static int booze_listxattr(const char* path, char* list, size_t size)
+{
+	return -ENOSYS;
+}
+
+static int booze_removexattr(const char* path, const char* name)
+{
+	return -ENOSYS;
+}
+
 static struct fuse_operations booze_ops = {
 	.getattr = booze_getattr,
+	.access = booze_access,
+	.readlink = booze_readlink,
 	.readdir = booze_readdir,
+	.mknod = booze_mknod,
+	.mkdir = booze_mkdir,
+	.unlink = booze_unlink,
+	.rmdir = booze_rmdir,
+	.symlink = booze_symlink,
+	.rename = booze_rename,
+	.link = booze_link,
+	.chmod = booze_chmod,
+	.chown = booze_chown,
+	.truncate = booze_truncate,
+	.utimens = booze_utimens,
 	.open = booze_open,
 	.read = booze_read,
+	.write = booze_write,
+	.statfs = booze_statfs,
+	.release = booze_release,
+	.fsync = booze_fsync,
+	.fallocate = booze_fallocate,
+	.setxattr = booze_setxattr,
+	.getxattr = booze_getxattr,
+	.listxattr = booze_listxattr,
+	.removexattr = booze_removexattr,
 };
 
 /*
