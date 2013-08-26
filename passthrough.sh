@@ -1,3 +1,4 @@
+#!/bin/bash
 
 if [ $# -ne 2 ]; then
 	echo >&2 "Usage: `basename $0` DIR MNTPT"
