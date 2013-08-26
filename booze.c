@@ -331,9 +331,26 @@ static int booze_write(const char* path, const char* buf, size_t size, off_t off
 	return -ENOSYS;
 }
 
-static int booze_statfs(const char* path, struct statvfs* stvfs)
+static int booze_statfs(const char* path, struct statvfs* st)
 {
-	return -ENOSYS;
+	const char* output;
+	int status, scanned;
+	WL_DECLINIT1(args, "%s", path);
+
+	status = call_boozefn("booze_statfs", args, &output);
+
+	if (status)
+		return status;
+
+	if (!output)
+		return -EIO;
+
+	/* f_{frsize,favail,fsid,flag} are ignored */
+	scanned = sscanf(output, "%lu %lu %lu %lu %lu %lu %lu",
+	                 &st->f_bsize, &st->f_blocks, &st->f_bfree, &st->f_bavail,
+	                 &st->f_files, &st->f_ffree, &st->f_namemax);
+
+	return (scanned == 7) ? 0 : -EIO;
 }
 
 BASIC1_IL(release, const char*, path, "%s", struct fuse_file_info*, fi);

@@ -115,9 +115,7 @@ booze_read()
 	booze_out="$(tail -c+$(($3 == 0 ? 0 : $3 + 1)) "$rootdir/$1" | head -c$2)"
 }
 
-booze_write()
-{
-	dd of="$1" bs=1 count=$3 seek=$4 <<<"$2"
-}
+booze_write() { dd of="$1" bs=1 count=$3 seek=$4 <<<"$2"; }
+booze_statfs() { booze_out="$(stat -L -f "$rootdir" -c "%S %b %f %a %c %d %l")"; }
 
 booze "$mntpt"
