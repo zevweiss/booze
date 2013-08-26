@@ -325,10 +325,25 @@ static int booze_read(const char* path, char* buf, size_t size, off_t offset,
 	return strlen(output);
 }
 
+/* Good luck if you've got NULs in your data... */
 static int booze_write(const char* path, const char* buf, size_t size, off_t offset,
                        struct fuse_file_info* fi)
 {
-	return -ENOSYS;
+	const char* output;
+	int status;
+	char* str = xasprintf("%*s", size, buf);
+	WL_DECLINIT3(args, "%s", path, "%s", str, "%jd", (intmax_t)offset);
+
+	free(str);
+
+	status = call_boozefn("booze_write", args, &output);
+
+	if (status)
+		return status;
+	else if (!output)
+		return -EIO;
+	else
+		return atoi(output);
 }
 
 static int booze_statfs(const char* path, struct statvfs* st)
