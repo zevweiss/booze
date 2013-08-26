@@ -21,13 +21,13 @@ dostat()
 	printf '%d %o %s\n' $ino $mode "$rest"
 }
 
-booze_getattr()
+pt_getattr()
 {
 	[ -e "$rootdir/$1" ] || { booze_err=-$ENOENT; return 1; }
 	booze_out=`dostat "$rootdir/$1"`
 }
 
-booze_access()
+pt_access()
 {
 	[ -e "$rootdir/$1" ] || { booze_err=-$ENOENT; return 1; }
 	[ "$2" == "$F_OK" ] && return 0
@@ -42,7 +42,7 @@ booze_access()
 	fi
 }
 
-booze_readlink()
+pt_readlink()
 {
 	[ -e "$rootdir/$1" ] || { booze_err=-$ENOENT; return 1; }
 	[ -l "$rootdir/$1" ] || { booze_err=-$EINVAL; return 1; }
@@ -50,7 +50,7 @@ booze_readlink()
 	return $?
 }
 
-booze_readdir()
+pt_readdir()
 {
 	[ -e "$rootdir/$1" ] || { booze_err=-$ENOENT; return 1; }
 	[ -d "$rootdir/$1" ] || { booze_err=-$ENOTDIR; return 1; }
@@ -63,7 +63,7 @@ booze_readdir()
 	return 0
 }
 
-booze_mknod()
+pt_mknod()
 {
 	local perms=`printf %o $(($2 & 07777))`
 
@@ -80,18 +80,18 @@ booze_mknod()
 	fi
 }
 
-booze_mkdir() { mkdir -m `printf %o $2` "$rootdir/$1"; }
-booze_unlink() { rm -f "$rootdir/$1"; }
-booze_rmdir() { rmdir "$rootdir/$1"; }
-booze_symlink() { ln -sn "$rootdir/$1" "$2"; }
-booze_rename() { mv -f "$rootdir/$1" "$rootdir/$2"; }
-booze_link() { ln -n "$rootdir/$1" "$rootdir/$2"; }
-booze_chmod() { chmod `printf %o $(($2 & 07777))` "$rootdir/$1"; }
-booze_chown() { chown -h $2:$3 "$rootdir/$1"; }
-booze_truncate() { truncate -s $2 "$rootdir/$1"; }
-booze_utimens() { touch -h -d @$2 "$rootdir/$1" && touch -h -d @$3 "$rootdir/$1"; }
+pt_mkdir() { mkdir -m `printf %o $2` "$rootdir/$1"; }
+pt_unlink() { rm -f "$rootdir/$1"; }
+pt_rmdir() { rmdir "$rootdir/$1"; }
+pt_symlink() { ln -sn "$rootdir/$1" "$2"; }
+pt_rename() { mv -f "$rootdir/$1" "$rootdir/$2"; }
+pt_link() { ln -n "$rootdir/$1" "$rootdir/$2"; }
+pt_chmod() { chmod `printf %o $(($2 & 07777))` "$rootdir/$1"; }
+pt_chown() { chown -h $2:$3 "$rootdir/$1"; }
+pt_truncate() { truncate -s $2 "$rootdir/$1"; }
+pt_utimens() { touch -h -d @$2 "$rootdir/$1" && touch -h -d @$3 "$rootdir/$1"; }
 
-booze_open()
+pt_open()
 {
 	if ! [ -e "$rootdir/$1" ]; then
 		if [ "$(($2 & $O_CREAT))" -ne 0 ]; then
@@ -109,14 +109,12 @@ booze_open()
 	return 0
 }
 
-booze_read()
+pt_read()
 {
 	dd if="$rootdir/$1" bs=1 count=$2 skip=$3
-	# read -N $2 booze_out < <(tail -c+$(($3 == 0 ? 0 : $3 + 1)) "$rootdir/$1" | head -c$2)
-	# return 0
 }
 
-booze_write()
+pt_write()
 {
 	dd of="$rootdir/$1" bs=1 count=$2 seek=$3 || {
 		booze_err=-$EIO
@@ -127,6 +125,14 @@ booze_write()
 	return 0
 }
 
-booze_statfs() { booze_out="$(stat -L -f "$rootdir" -c "%S %b %f %a %c %d %l")"; }
+pt_statfs() { booze_out="$(stat -L -f "$rootdir" -c "%S %b %f %a %c %d %l")"; }
 
-booze "$mntpt"
+declare -A passthrough_ops
+
+for name in ${BOOZE_CALL_NAMES[@]}; do
+	if [ "`type -t pt_$name`" == "function" ]; then
+		passthrough_ops[$name]=pt_$name
+	fi
+done
+
+booze passthrough_ops "$mntpt"

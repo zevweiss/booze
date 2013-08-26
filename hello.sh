@@ -34,7 +34,7 @@ booze_open()
 	fi
 }
 
-data=$'Booze!\n'
+file=$'Booze!\n'
 booze_read()
 {
 	if [ "$1" != "/booze" ]; then
@@ -45,18 +45,27 @@ booze_read()
 	local readlen="$2"
 	local offset="$3"
 
-	local datalen="${#data}"
+	local filelen="${#file}"
 
-	if [ "$offset" -lt "$datalen" ]; then
-		if [ "$((offset + readlen))" -gt "$datalen" ]; then
-			readlen="$((datalen - offset))"
+	if [ "$offset" -lt "$filelen" ]; then
+		if [ "$((offset + readlen))" -gt "$filelen" ]; then
+			readlen="$((filelen - offset))"
 		fi
-		booze_out="${data:offset:readlen}"
+		data="${file:offset:readlen}"
 	else
-		booze_out=""
+		data=""
 	fi
 
+	printf "%s" "$data"
 	return 0
 }
 
-booze "$1"
+declare -A booze_ops
+
+for name in ${BOOZE_CALL_NAMES[@]}; do
+	if [ "`type -t booze_$name`" == "function" ]; then
+		booze_ops[$name]=booze_$name
+	fi
+done
+
+booze booze_ops "$1"

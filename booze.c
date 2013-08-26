@@ -137,12 +137,17 @@ static void free_onstack_wordlist(WORD_LIST* wl)
 	}
 }
 
-static int call_boozefn(const char* fn_name, WORD_LIST* args, const char** output)
+static int call_boozefn(const char* handler_name, WORD_LIST* args, const char** output)
 {
 	int status;
 	SHELL_VAR* err;
 	SHELL_VAR* out;
-	SHELL_VAR* fn = find_function(fn_name);
+	SHELL_VAR* fn;
+
+	if (!handler_name)
+		return -ENOSYS;
+
+	fn = find_function(handler_name);
 
 	if (!fn)
 		return -ENOSYS;
@@ -184,7 +189,7 @@ static int call_boozefn(const char* fn_name, WORD_LIST* args, const char** outpu
 	static int booze_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5)
 
 #define __basic_call(name, args) \
-	call_boozefn("booze_"#name, args, NULL)
+	call_boozefn(handlers.name, args, NULL)
 
 #define __basic_body1(name, f1, a1) \
 	WL_DECLINIT1(args, f1, a1); \
@@ -231,13 +236,42 @@ static int call_boozefn(const char* fn_name, WORD_LIST* args, const char** outpu
 	__basic_decl5(name, t1, a1, t2, a2, t3, a3, t4, a4, it, in) \
 	{ __basic_body4(name, f1, a1, f2, a2, f3, a3, f4, a4); }
 
+static struct {
+	char* getattr;
+	char* access;
+	char* readlink;
+	char* readdir;
+	char* mknod;
+	char* mkdir;
+	char* unlink;
+	char* rmdir;
+	char* symlink;
+	char* rename;
+	char* link;
+	char* chmod;
+	char* chown;
+	char* truncate;
+	char* utimens;
+	char* open;
+	char* read;
+	char* write;
+	char* statfs;
+	char* release;
+	char* fsync;
+	char* fallocate;
+	char* setxattr;
+	char* getxattr;
+	char* listxattr;
+	char* removexattr;
+} handlers;
+
 static int booze_getattr(const char* path, struct stat* st)
 {
 	const char* output;
 	int status, scanned;
 	WL_DECLINIT1(args, "%s", path);
 
-	status = call_boozefn("booze_getattr", args, &output);
+	status = call_boozefn(handlers.getattr, args, &output);
 
 	if (status)
 		return status;
@@ -260,7 +294,7 @@ static int booze_readlink(const char* path, char* buf, size_t size)
 	int status;
 	WL_DECLINIT1(args, "%s", path);
 
-	status = call_boozefn("booze_readlink", args, &output);
+	status = call_boozefn(handlers.readlink, args, &output);
 
 	if (status)
 		return status;
@@ -280,7 +314,7 @@ static int booze_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 	const char* de_end;
 	WL_DECLINIT1(args, "%s", path);
 
-	status = call_boozefn("booze_readdir", args, &output);
+	status = call_boozefn(handlers.readdir, args, &output);
 
 	if (status)
 		return status;
@@ -327,14 +361,14 @@ static int booze_utimens(const char* path, const struct timespec ts[2])
 	free(t0);
 	free(t1);
 
-	return call_boozefn("booze_utimens", args, NULL);
+	return call_boozefn(handlers.utimens, args, NULL);
 }
 
 static int booze_open(const char *path, struct fuse_file_info *fi)
 {
 	WL_DECLINIT2(args, "%s", path, "%d", fi->flags);
 
-	return call_boozefn("booze_open", args, NULL);
+	return call_boozefn(handlers.open, args, NULL);
 }
 
 static void booze_read_child(const char* path, size_t size, off_t offset, int retpipe)
@@ -342,7 +376,7 @@ static void booze_read_child(const char* path, size_t size, off_t offset, int re
 	int status;
 	WL_DECLINIT3(args, "%s", path, "%zd", size, "%jd", (intmax_t)offset);
 
-	status = call_boozefn("booze_read", args, NULL);
+	status = call_boozefn(handlers.read, args, NULL);
 
 	if (status)
 		write(retpipe, &status, sizeof(status));
@@ -405,7 +439,7 @@ static void booze_write_child(const char* path, size_t size, off_t offset, int r
 	const char* output;
 	WL_DECLINIT3(args, "%s", path, "%zd", size, "%jd", (intmax_t)offset);
 
-	status = call_boozefn("booze_write", args, &output);
+	status = call_boozefn(handlers.write, args, &output);
 
 	if (!status)
 		status = atoi(output);
@@ -466,7 +500,7 @@ static int booze_statfs(const char* path, struct statvfs* st)
 	int status, scanned;
 	WL_DECLINIT1(args, "%s", path);
 
-	status = call_boozefn("booze_statfs", args, &output);
+	status = call_boozefn(handlers.statfs, args, &output);
 
 	if (status)
 		return status;
@@ -614,8 +648,95 @@ static int fuse_env_hack(void)
 	return 0;
 }
 
+static int set_up_handlers(const char* arrname)
+{
+	SHELL_VAR* var;
+	char* hname;
+
+	var = find_variable(arrname);
+	if (!var) {
+		builtin_error("%s: variable not found", arrname);
+		return -1;
+	}
+
+	if (!assoc_p(var)) {
+		builtin_error("%s: not an associative array", arrname);
+		return -1;
+	}
+
+#define SETUP(fn) \
+	do { \
+		hname = assoc_reference(assoc_cell(var), #fn); \
+		handlers.fn = hname ? xasprintf("%s", hname) : NULL; \
+	} while (0)
+
+	SETUP(getattr);
+	SETUP(access);
+	SETUP(readlink);
+	SETUP(readdir);
+	SETUP(mknod);
+	SETUP(mkdir);
+	SETUP(unlink);
+	SETUP(rmdir);
+	SETUP(symlink);
+	SETUP(rename);
+	SETUP(link);
+	SETUP(chmod);
+	SETUP(chown);
+	SETUP(truncate);
+	SETUP(utimens);
+	SETUP(open);
+	SETUP(read);
+	SETUP(write);
+	SETUP(statfs);
+	SETUP(release);
+	SETUP(fsync);
+	SETUP(fallocate);
+	SETUP(setxattr);
+	SETUP(getxattr);
+	SETUP(listxattr);
+	SETUP(removexattr);
+
+#undef SETUP
+
+	return 0;
+}
+
+static void tear_down_handlers(void)
+{
+#define TEARDOWN(fn) do { if (handlers.fn) free(handlers.fn); } while (0)
+	TEARDOWN(getattr);
+	TEARDOWN(access);
+	TEARDOWN(readlink);
+	TEARDOWN(readdir);
+	TEARDOWN(mknod);
+	TEARDOWN(mkdir);
+	TEARDOWN(unlink);
+	TEARDOWN(rmdir);
+	TEARDOWN(symlink);
+	TEARDOWN(rename);
+	TEARDOWN(link);
+	TEARDOWN(chmod);
+	TEARDOWN(chown);
+	TEARDOWN(truncate);
+	TEARDOWN(utimens);
+	TEARDOWN(open);
+	TEARDOWN(read);
+	TEARDOWN(write);
+	TEARDOWN(statfs);
+	TEARDOWN(release);
+	TEARDOWN(fsync);
+	TEARDOWN(fallocate);
+	TEARDOWN(setxattr);
+	TEARDOWN(getxattr);
+	TEARDOWN(listxattr);
+	TEARDOWN(removexattr);
+#undef TEARDOWN
+}
+
 static int booze_builtin(WORD_LIST* args)
 {
+	int status;
 	char* fuse_argv[] = {
 		"booze", NULL, "-s",
 #ifdef BOOZE_DEBUG
@@ -623,25 +744,30 @@ static int booze_builtin(WORD_LIST* args)
 #endif
 	};
 
-	if (!args || args->next) {
+	if (!args || !args->next || args->next->next) {
 		builtin_usage();
 		return EX_USAGE;
 	}
 
-	fuse_argv[1] = args->word->word;
+	set_up_handlers(args->word->word);
+	fuse_argv[1] = args->next->word->word;
 
 	if (fuse_env_hack())
 		return EXECUTION_FAILURE;
 
-	return fuse_main(sizeof(fuse_argv)/sizeof(fuse_argv[0]), fuse_argv,
-	                 &booze_ops, NULL);
+	status = fuse_main(sizeof(fuse_argv)/sizeof(fuse_argv[0]), fuse_argv,
+	                   &booze_ops, NULL);
+
+	tear_down_handlers();
+
+	return status ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
 }
 
 static char* booze_doc[] = {
-	"Mount a booze filesystem at MOUNTPOINT.",
+	"Mount a booze filesystem at MOUNTPOINT using functions in FN_ASSOC.",
 	"",
-	"If this doesn't seem like a good idea, the user is encouraged",
-	"to drink until it does.",
+	"If for any reason this doesn't seem like a good idea, the user is ",
+	"encouraged to drink until it does.",
 	NULL,
 };
 
@@ -650,6 +776,6 @@ struct builtin booze_struct = {
 	booze_builtin,
 	BUILTIN_ENABLED,
 	booze_doc,
-	"booze MOUNTPOINT",
+	"booze FN_ASSOC MOUNTPOINT",
 	0,
 };

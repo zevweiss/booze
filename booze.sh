@@ -25,6 +25,10 @@ done
 # This one doesn't fit the S_IS*/S_IF* pattern
 S_ISFIFO() { [ "$(($1 & $S_IFIFO))" -eq "$((S_IFIFO))" ]; }
 
+BOOZE_CALL_NAMES=(getattr access readlink readdir mknod mkdir unlink rmdir symlink
+	          rename link chmod chown truncate utimens open read write statfs
+	          release fsync fallocate setxattr getxattr listxattr removexattr)
+
 # Namespace cleanup
 unset -v __t
 unset -f __getmacros
