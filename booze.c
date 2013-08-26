@@ -91,6 +91,42 @@ static char* xasprintf(const char* fmt, ...)
 	return tmp;
 }
 
+static ssize_t readall(int fd, void* buf, size_t size)
+{
+	ssize_t totalread, bytesread;
+
+	totalread = 0;
+	do {
+		bytesread = read(fd, buf + totalread, size - totalread);
+		if (bytesread < 0 && errno != EINTR)
+			return -errno;
+		else if (!bytesread)
+			break;
+		else
+			totalread += bytesread;
+	} while (size - totalread > 0);
+
+	return totalread;
+}
+
+static ssize_t writeall(int fd, const void* buf, size_t size)
+{
+	ssize_t totalwritten, byteswritten;
+
+	totalwritten = 0;
+	do {
+		byteswritten = write(fd, buf + totalwritten, size - totalwritten);
+		if (byteswritten < 0 && errno != EINTR)
+			return errno == EPIPE ? totalwritten : -errno;
+		else if (!byteswritten)
+			break;
+		else
+			totalwritten += byteswritten;
+	} while (size - totalwritten > 0);
+
+	return totalwritten;
+}
+
 static void free_onstack_wordlist(WORD_LIST* wl)
 {
 	WORD_LIST* w;
@@ -301,49 +337,127 @@ static int booze_open(const char *path, struct fuse_file_info *fi)
 	return call_boozefn("booze_open", args, NULL);
 }
 
-static int booze_read(const char* path, char* buf, size_t size, off_t offset,
-                      struct fuse_file_info* fi)
+static void booze_read_child(const char* path, size_t size, off_t offset, int retpipe)
 {
-	const char* output;
 	int status;
 	WL_DECLINIT3(args, "%s", path, "%zd", size, "%jd", (intmax_t)offset);
 
-	status = call_boozefn("booze_read", args, &output);
+	status = call_boozefn("booze_read", args, NULL);
 
 	if (status)
-		return status;
+		write(retpipe, &status, sizeof(status));
 
-	if (!output)
-		return -EIO;
-
-	/* -EIO if user booze_read returned too much data */
-	if (strlen(output) > size)
-		return -EIO;
-
-	memcpy(buf, output, strlen(output));
-
-	return strlen(output);
+	exit(!!status);
 }
 
-/* Good luck if you've got NULs in your data... */
-static int booze_write(const char* path, const char* buf, size_t size, off_t offset,
-                       struct fuse_file_info* fi)
+static int booze_read(const char* path, char* buf, size_t size, off_t offset,
+                      struct fuse_file_info* fi)
 {
-	const char* output;
-	int status;
-	char* str = xasprintf("%*s", size, buf);
-	WL_DECLINIT3(args, "%s", path, "%s", str, "%jd", (intmax_t)offset);
+	pid_t pid;
+	int childstatus;
+	ssize_t datalen, retlen;
+	int retpipe[2], datapipe[2];
 
-	free(str);
+	if (pipe(retpipe) || pipe(datapipe))
+		return -errno;
+
+	pid = fork();
+	if (pid < 0)
+		return -errno;
+	else if (!pid) {
+		/* Close pipe read ends */
+		close(retpipe[0]);
+		close(datapipe[0]);
+
+		/* Move datapipe's write end to stdout */
+		close(STDOUT_FILENO);
+		if (dup2(datapipe[1], STDOUT_FILENO) != STDOUT_FILENO)
+			exit(1);
+		close(datapipe[1]);
+
+		booze_read_child(path, size, offset, retpipe[1]);
+	}
+
+	close(retpipe[1]);
+	close(datapipe[1]);
+
+	datalen = readall(datapipe[0], buf, size);
+	close(datapipe[0]);
+
+	retlen = readall(retpipe[0], &childstatus, sizeof(childstatus));
+	close(retpipe[0]);
+
+	/*
+	 * No wait(2) here; we're running inside bash, which handles that via
+	 * some internal zombie-be-gone magic (trying to wait here results in
+	 * a race, sometimes failing with ECHILD).
+	 */
+
+	if (retlen > 0)
+		return (retlen == sizeof(childstatus)) ? childstatus : -EIO;
+	else
+		return datalen;
+}
+
+static void booze_write_child(const char* path, size_t size, off_t offset, int retpipe)
+{
+	int status;
+	const char* output;
+	WL_DECLINIT3(args, "%s", path, "%zd", size, "%jd", (intmax_t)offset);
 
 	status = call_boozefn("booze_write", args, &output);
 
-	if (status)
-		return status;
-	else if (!output)
+	if (!status)
+		status = atoi(output);
+
+	write(retpipe, &status, sizeof(status));
+
+	exit(status < 0);
+}
+
+static int booze_write(const char* path, const char* buf, size_t size, off_t offset,
+                       struct fuse_file_info* fi)
+{
+	pid_t pid;
+	int childstatus;
+	ssize_t written, retlen;
+	int retpipe[2], datapipe[2];
+
+	if (pipe(retpipe) || pipe(datapipe))
+		return -errno;
+
+	pid = fork();
+	if (pid < 0)
+		return -errno;
+	else if (!pid) {
+		/* Close unused pipe ends */
+		close(retpipe[0]);
+		close(datapipe[1]);
+
+		/* Move datapipe's read end to stdin */
+		close(STDIN_FILENO);
+		if (dup2(datapipe[0], STDIN_FILENO) != STDIN_FILENO)
+			exit(1);
+		close(datapipe[0]);
+
+		booze_write_child(path, size, offset, retpipe[1]);
+	}
+
+	close(retpipe[1]);
+	close(datapipe[0]);
+
+	written = writeall(datapipe[1], buf, size);
+	close(datapipe[1]);
+
+	retlen = readall(retpipe[0], &childstatus, sizeof(childstatus));
+	close(retpipe[0]);
+
+	/* Again, no wait(2) here.  Bash handles this for us (somehow). */
+
+	if (retlen != sizeof(childstatus))
 		return -EIO;
-	else
-		return atoi(output);
+	else /* The child can't claim to have written more than we sent it. */
+		return (childstatus > written) ? -EIO : childstatus;
 }
 
 static int booze_statfs(const char* path, struct statvfs* st)

@@ -66,7 +66,6 @@ booze_readdir()
 booze_mknod()
 {
 	local perms=`printf %o $(($2 & 07777))`
-	echo >&2 "###>>> mknod $*"
 
 	if S_ISREG $2; then
 		[ -e "$rootdir/$1" ] && { booze_err=-$EEXIST; return 1; }
@@ -112,13 +111,19 @@ booze_open()
 
 booze_read()
 {
-	booze_out="$(tail -c+$(($3 == 0 ? 0 : $3 + 1)) "$rootdir/$1" | head -c$2)"
+	dd if="$rootdir/$1" bs=1 count=$2 skip=$3
+	# read -N $2 booze_out < <(tail -c+$(($3 == 0 ? 0 : $3 + 1)) "$rootdir/$1" | head -c$2)
+	# return 0
 }
 
 booze_write()
 {
-	echo -n "$2" | dd of="$rootdir/$1" bs=1 seek=$3 || { booze_err=-$EIO; return 1; }
-	booze_out="${#2}"
+	dd of="$rootdir/$1" bs=1 count=$2 seek=$3 || {
+		booze_err=-$EIO
+		booze_out=-$EIO
+		return 1
+	}
+	booze_out="$2"
 	return 0
 }
 
