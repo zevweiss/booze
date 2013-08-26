@@ -65,6 +65,14 @@
 	WL_SETUP3(name, f1, a1, f2, a2, f3, a3, NULL); \
 	__wldecl(name)
 
+#define WL_SETUP4(name, f1, a1, f2, a2, f3, a3, f4, a4, nxt) \
+	__wlchunk(name, 4, xasprintf(f4, a4), nxt); \
+	WL_SETUP3(name, f1, a1, f2, a2, f3, a3, &__wlname(name, 4))
+
+#define WL_DECLINIT4(name, f1, a1, f2, a2, f3, a3, f4, a4) \
+	WL_SETUP4(name, f1, a1, f2, a2, f3, a3, f4, a4, NULL); \
+	__wldecl(name)
+
 static char* xasprintf(const char* fmt, ...)
 {
 	char* tmp;
@@ -124,29 +132,68 @@ static int call_boozefn(const char* fn_name, WORD_LIST* args, const char** outpu
 	}
 }
 
+#define __basic_decl1(name, t1, a1) \
+	static int booze_##name(t1 a1)
+
+#define __basic_decl2(name, t1, a1, t2, a2) \
+	static int booze_##name(t1 a1, t2 a2)
+
+#define __basic_decl3(name, t1, a1, t2, a2, t3, a3) \
+	static int booze_##name(t1 a1, t2 a2, t3 a3)
+
+#define __basic_decl4(name, t1, a1, t2, a2, t3, a3, t4, a4) \
+	static int booze_##name(t1 a1, t2 a2, t3 a3, t4 a4)
+
+#define __basic_decl5(name, t1, a1, t2, a2, t3, a3, t4, a4, t5, a5) \
+	static int booze_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5)
+
+#define __basic_call(name, args) \
+	call_boozefn("booze_"#name, args, NULL)
+
+#define __basic_body1(name, f1, a1) \
+	WL_DECLINIT1(args, f1, a1); \
+	return __basic_call(name, args)
+
+#define __basic_body2(name, f1, a1, f2, a2) \
+	WL_DECLINIT2(args, f1, a1, f2, a2); \
+	return __basic_call(name, args)
+
+#define __basic_body3(name, f1, a1, f2, a2, f3, a3) \
+	WL_DECLINIT3(args, f1, a1, f2, a2, f3, a3); \
+	return __basic_call(name, args)
+
+#define __basic_body4(name, f1, a1, f2, a2, f3, a3, f4, a4) \
+	WL_DECLINIT4(args, f1, a1, f2, a2, f3, a3, f4, a4); \
+	return __basic_call(name, args)
+
 #define BASIC1(name, t1, a1, f1) \
-	static int booze_##name(t1 a1) \
-	{ \
-		WL_DECLINIT1(args, f1, a1); \
-		\
-		return call_boozefn("booze_"#name, args, NULL); \
-	}
+	__basic_decl1(name, t1, a1) \
+	{ __basic_body1(name, f1, a1); }
 
 #define BASIC2(name, t1, a1, f1, t2, a2, f2) \
-	static int booze_##name(t1 a1, t2 a2) \
-	{ \
-		WL_DECLINIT2(args, f1, a1, f2, a2); \
-		\
-		return call_boozefn("booze_"#name, args, NULL); \
-	}
+	__basic_decl2(name, t1, a1, t2, a2) \
+	{ __basic_body2(name, f1, a1, f2, a2); }
 
 #define BASIC3(name, t1, a1, f1, t2, a2, f2, t3, a3, f3) \
-	static int booze_##name(t1 a1, t2 a2, t3 a3) \
-	{ \
-		WL_DECLINIT3(args, f1, a1, f2, a2, f3, a3); \
-		\
-		return call_boozefn("booze_"#name, args, NULL); \
-	}
+	__basic_decl3(name, t1, a1, t2, a2, t3, a3) \
+	{ __basic_body3(name, f1, a1, f2, a2, f3, a3); }
+
+/* "ignore-last" variants of BASIC* */
+#define BASIC1_IL(name, t1, a1, f1, it, in) \
+	__basic_decl2(name, t1, a1, it, in) \
+	{ __basic_body1(name, f1, a1); }
+
+#define BASIC2_IL(name, t1, a1, f1, t2, a2, f2, it, in) \
+	__basic_decl3(name, t1, a1, t2, a2, it, in) \
+	{ __basic_body2(name, f1, a1, f2, a2); }
+
+#define BASIC3_IL(name, t1, a1, f1, t2, a2, f2, t3, a3, f3, it, in) \
+	__basic_decl4(name, t1, a1, t2, a2, t3, a3, it, in) \
+	{ __basic_body3(name, f1, a1, f2, a2, f3, a3); }
+
+#define BASIC4_IL(name, t1, a1, f1, t2, a2, f2, t3, a3, f3, t4, a4, f4, it, in) \
+	__basic_decl5(name, t1, a1, t2, a2, t3, a3, t4, a4, it, in) \
+	{ __basic_body4(name, f1, a1, f2, a2, f3, a3, f4, a4); }
 
 static int booze_getattr(const char* path, struct stat* st)
 {
@@ -289,21 +336,10 @@ static int booze_statfs(const char* path, struct statvfs* stvfs)
 	return -ENOSYS;
 }
 
-static int booze_release(const char* path, struct fuse_file_info* fi)
-{
-	return -ENOSYS;
-}
-
-static int booze_fsync(const char* path, int datasync, struct fuse_file_info* fi)
-{
-	return -ENOSYS;
-}
-
-static int booze_fallocate(const char* path, int mode, off_t offset, off_t length,
-                           struct fuse_file_info* fi)
-{
-	return -ENOSYS;
-}
+BASIC1_IL(release, const char*, path, "%s", struct fuse_file_info*, fi);
+BASIC2_IL(fsync, const char*, path, "%s", int, datasync, "%d", struct fuse_file_info*, fi);
+BASIC4_IL(fallocate, const char*, path, "%s", int, mode, "%d", off_t, offset, "%jd",
+          off_t, length, "%jd", struct fuse_file_info*, fi);
 
 static int booze_setxattr(const char* path, const char* name, const char* value,
                           size_t size, int flags)
