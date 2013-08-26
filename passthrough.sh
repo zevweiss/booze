@@ -90,6 +90,7 @@ booze_link() { ln -n "$rootdir/$1" "$rootdir/$2"; }
 booze_chmod() { chmod `printf %o $(($2 & 07777))` "$rootdir/$1"; }
 booze_chown() { chown -h $2:$3 "$rootdir/$1"; }
 booze_truncate() { truncate -s $2 "$rootdir/$1"; }
+booze_utimens() { touch -h -d @$2 "$rootdir/$1" && touch -h -d @$3 "$rootdir/$1"; }
 
 booze_open()
 {

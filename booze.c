@@ -237,7 +237,14 @@ BASIC2(truncate, const char*, path, "%s", off_t, size, "%jd");
 
 static int booze_utimens(const char* path, const struct timespec ts[2])
 {
-	return -ENOSYS;
+	char* t0 = xasprintf("%d.%09d", ts[0].tv_sec, ts[0].tv_nsec);
+	char* t1 = xasprintf("%d.%09d", ts[1].tv_sec, ts[1].tv_nsec);
+	WL_DECLINIT3(args, "%s", path, "%s", t0, "%s", t1);
+
+	free(t0);
+	free(t1);
+
+	return call_boozefn("booze_utimens", args, NULL);
 }
 
 static int booze_open(const char *path, struct fuse_file_info *fi)
