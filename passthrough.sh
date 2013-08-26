@@ -4,7 +4,7 @@ if [ $# -ne 2 ]; then
 	exit 1
 fi
 
-rootdir="$1"
+rootdir="$(readlink -f "$1")"
 mntpt="$2"
 
 . ./booze.sh
