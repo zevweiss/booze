@@ -1,0 +1,39 @@
+/*
+ * For use where some little chunk of code is needed for each FUSE call.
+ */
+
+#ifndef FUSEOP
+#error Must define FUSEOP(...) before #including ops.def!
+#endif
+
+FUSEOP(getattr)
+FUSEOP(access)
+FUSEOP(readlink)
+FUSEOP(readdir)
+FUSEOP(mknod)
+FUSEOP(mkdir)
+FUSEOP(unlink)
+FUSEOP(rmdir)
+FUSEOP(symlink)
+FUSEOP(rename)
+FUSEOP(link)
+FUSEOP(chmod)
+FUSEOP(chown)
+FUSEOP(truncate)
+FUSEOP(utimens)
+FUSEOP(open)
+FUSEOP(read)
+FUSEOP(write)
+FUSEOP(statfs)
+FUSEOP(release)
+FUSEOP(fsync)
+FUSEOP(fallocate)
+FUSEOP(setxattr)
+FUSEOP(getxattr)
+FUSEOP(listxattr)
+FUSEOP(removexattr)
+
+/*
+ * For the convenience of the #includer, automatically #undef the magic macro
+ */
+#undef FUSEOP

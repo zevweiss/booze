@@ -236,32 +236,8 @@ static int call_boozefn(const char* handler_name, WORD_LIST* args, const char** 
 	{ __basic_body4(name, f1, a1, f2, a2, f3, a3, f4, a4); }
 
 static struct {
-	char* getattr;
-	char* access;
-	char* readlink;
-	char* readdir;
-	char* mknod;
-	char* mkdir;
-	char* unlink;
-	char* rmdir;
-	char* symlink;
-	char* rename;
-	char* link;
-	char* chmod;
-	char* chown;
-	char* truncate;
-	char* utimens;
-	char* open;
-	char* read;
-	char* write;
-	char* statfs;
-	char* release;
-	char* fsync;
-	char* fallocate;
-	char* setxattr;
-	char* getxattr;
-	char* listxattr;
-	char* removexattr;
+#define FUSEOP(op) char* op;
+#include "ops.def"
 } handlers;
 
 static int booze_getattr(const char* path, struct stat* st)
@@ -542,32 +518,8 @@ static int booze_removexattr(const char* path, const char* name)
 }
 
 static struct fuse_operations booze_ops = {
-	.getattr = booze_getattr,
-	.access = booze_access,
-	.readlink = booze_readlink,
-	.readdir = booze_readdir,
-	.mknod = booze_mknod,
-	.mkdir = booze_mkdir,
-	.unlink = booze_unlink,
-	.rmdir = booze_rmdir,
-	.symlink = booze_symlink,
-	.rename = booze_rename,
-	.link = booze_link,
-	.chmod = booze_chmod,
-	.chown = booze_chown,
-	.truncate = booze_truncate,
-	.utimens = booze_utimens,
-	.open = booze_open,
-	.read = booze_read,
-	.write = booze_write,
-	.statfs = booze_statfs,
-	.release = booze_release,
-	.fsync = booze_fsync,
-	.fallocate = booze_fallocate,
-	.setxattr = booze_setxattr,
-	.getxattr = booze_getxattr,
-	.listxattr = booze_listxattr,
-	.removexattr = booze_removexattr,
+#define FUSEOP(op) .op = booze_##op,
+#include "ops.def"
 };
 
 /*
@@ -663,74 +615,20 @@ static int set_up_handlers(const char* arrname)
 		return -1;
 	}
 
-#define SETUP(fn) \
+#define FUSEOP(op) \
 	do { \
-		hname = assoc_reference(assoc_cell(var), #fn); \
-		handlers.fn = hname ? xasprintf("%s", hname) : NULL; \
-	} while (0)
-
-	SETUP(getattr);
-	SETUP(access);
-	SETUP(readlink);
-	SETUP(readdir);
-	SETUP(mknod);
-	SETUP(mkdir);
-	SETUP(unlink);
-	SETUP(rmdir);
-	SETUP(symlink);
-	SETUP(rename);
-	SETUP(link);
-	SETUP(chmod);
-	SETUP(chown);
-	SETUP(truncate);
-	SETUP(utimens);
-	SETUP(open);
-	SETUP(read);
-	SETUP(write);
-	SETUP(statfs);
-	SETUP(release);
-	SETUP(fsync);
-	SETUP(fallocate);
-	SETUP(setxattr);
-	SETUP(getxattr);
-	SETUP(listxattr);
-	SETUP(removexattr);
-
-#undef SETUP
+		hname = assoc_reference(assoc_cell(var), #op); \
+		handlers.op = hname ? xasprintf("%s", hname) : NULL; \
+	} while (0);
+#include "ops.def"
 
 	return 0;
 }
 
 static void tear_down_handlers(void)
 {
-#define TEARDOWN(fn) do { if (handlers.fn) free(handlers.fn); } while (0)
-	TEARDOWN(getattr);
-	TEARDOWN(access);
-	TEARDOWN(readlink);
-	TEARDOWN(readdir);
-	TEARDOWN(mknod);
-	TEARDOWN(mkdir);
-	TEARDOWN(unlink);
-	TEARDOWN(rmdir);
-	TEARDOWN(symlink);
-	TEARDOWN(rename);
-	TEARDOWN(link);
-	TEARDOWN(chmod);
-	TEARDOWN(chown);
-	TEARDOWN(truncate);
-	TEARDOWN(utimens);
-	TEARDOWN(open);
-	TEARDOWN(read);
-	TEARDOWN(write);
-	TEARDOWN(statfs);
-	TEARDOWN(release);
-	TEARDOWN(fsync);
-	TEARDOWN(fallocate);
-	TEARDOWN(setxattr);
-	TEARDOWN(getxattr);
-	TEARDOWN(listxattr);
-	TEARDOWN(removexattr);
-#undef TEARDOWN
+#define FUSEOP(op) do { if (handlers.op) free(handlers.op); } while (0);
+#include "ops.def"
 }
 
 static int booze_builtin(WORD_LIST* args)
