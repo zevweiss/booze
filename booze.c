@@ -665,6 +665,14 @@ static int booze_builtin(WORD_LIST* args)
 static char* booze_doc[] = {
 	"Mount a booze filesystem at MOUNTPOINT using functions in FN_ASSOC.",
 	"",
+	"FN_ASSOC must be an associative array.  Any keys it contains that match",
+	"one of the following FUSE operation names will cause that FUSE operation",
+	"to be implemented by the bash function named by the value corresponding",
+	"to the key:",
+	"",
+#define FUSEOP(op) "    "#op,
+#include "ops.def"
+	"",
 	"If for any reason this doesn't seem like a good idea, the user is ",
 	"encouraged to drink until it does.",
 	NULL,
