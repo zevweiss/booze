@@ -643,10 +643,12 @@ static int booze_builtin(WORD_LIST* args)
 
 	if (!args || !args->next || args->next->next) {
 		builtin_usage();
-		return EX_USAGE;
+		return EX_BADUSAGE;
 	}
 
-	set_up_handlers(args->word->word);
+	if (set_up_handlers(args->word->word))
+		return EX_BADUSAGE;
+
 	fuse_argv[1] = args->next->word->word;
 
 	if (fuse_env_hack())
