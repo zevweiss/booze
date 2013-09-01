@@ -18,6 +18,7 @@
 #include "bashgetopt.h"
 #include "common.h"
 #include "execute_cmd.h"
+#include "error.h"
 
 #define __wdname(name, num) __##name##_word_desc##num
 #define __wlname(name, num) __##name##_word_list##num
@@ -83,10 +84,8 @@ static char* xasprintf(const char* fmt, ...)
 	status = vasprintf(&tmp, fmt, va);
 	va_end(va);
 
-	if (status < 0) {
-		fprintf(stderr, "vasprintf() failed\n");
-		exit(1);
-	}
+	if (status < 0)
+		fatal_error("vasprintf() failed\n");
 
 	return tmp;
 }
@@ -631,8 +630,8 @@ static int fuse_env_hack(void)
 	err = dlerror();
 
 	if (!next_setenv_addr || err) {
-		fprintf(stderr, "couldn't find real setenv: %s\n",
-		        err ? err : "[no dlerror??]");
+		internal_error("couldn't find real setenv: %s",
+		               err ? err : "[no dlerror??]");
 		return -1;
 	}
 
