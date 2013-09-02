@@ -4,7 +4,7 @@ booze
 FUSE bindings for bash.
 
 If you, like me, have ever had the desire to create a FUSE filesystem
-from a shell script, this may be the thing for you.
+from a shell script, this may be just the thing for you.
 
 booze compiles to a shared library (`booze.so`) that you can load into
 bash via its `enable -f` feature.  It adds a new builtin to bash,
@@ -50,3 +50,7 @@ Its `help` text gives a basic description of how to use it:
 
         If for any reason this doesn't seem like a good idea, the user is
         encouraged to drink until it does.
+
+The files `hello.sh` (a simple "hello world"), `passthrough.sh` (sort
+of like a bind mount), and `cowsayfs.sh` (filenames through cowsay!)
+provide examples of functioning booze filesystems.
