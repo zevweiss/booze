@@ -7,7 +7,12 @@ DEFINES = _GNU_SOURCE
 LIBFLAGS = -shared -fPIC
 CWARN = -Wall
 COPT = -O0
-CDEBUG = -ggdb3
+ifneq ($(DEBUG),)
+	CDEBUG = -ggdb3
+	DEFINES += BOOZE_DEBUG
+else
+	CDEBUG =
+endif
 CINCLUDES = $(foreach d,$(INCLUDES),-I$(d))
 CDEFINES = $(foreach d,$(DEFINES),-D$(d))
 
