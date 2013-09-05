@@ -13,5 +13,7 @@ CDEFINES = $(foreach d,$(DEFINES),-D$(d))
 
 CFLAGS = $(CWARN) $(COPT) $(CINCLUDES) $(CDEFINES) $(LIBFLAGS) $(CDEBUG)
 
+FUSEFLAGS = $(shell pkg-config fuse --cflags --libs)
+
 booze.so: booze.c
-	$(CC) $(CFLAGS) `pkg-config fuse --cflags --libs` -shared -o $@ $<
+	$(CC) $(CFLAGS) $(FUSEFLAGS) -o $@ $<
