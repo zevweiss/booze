@@ -651,6 +651,11 @@ static int booze_builtin(WORD_LIST* args)
 			fuse_argv[argidx++] = "-f";
 			fuse_argv = xrealloc(fuse_argv, (argidx + 1) * sizeof(char*));
 			break;
+
+		default:
+			xfree(fuse_argv);
+			builtin_usage();
+			return EX_USAGE;
 		}
 	}
 
