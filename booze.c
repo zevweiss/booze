@@ -633,13 +633,28 @@ static void tear_down_handlers(void)
 
 static int booze_builtin(WORD_LIST* args)
 {
-	int status;
-	char* fuse_argv[] = {
-		"booze", NULL, "-s",
-#ifdef BOOZE_DEBUG
-		"-d",
-#endif
-	};
+	int status, opt;
+#define FUSE_MINARGS 3 /* "booze", "-s", and the mountpoint */
+	char** fuse_argv = xmalloc(FUSE_MINARGS * sizeof(char*));
+	int argidx = FUSE_MINARGS - 1;
+	fuse_argv[0] = "booze";
+	fuse_argv[1] = "-s";
+
+	while ((opt = internal_getopt(args, "df")) != -1) {
+		switch (opt) {
+		case 'd':
+			fuse_argv[argidx++] = "-d";
+			fuse_argv = xrealloc(fuse_argv, (argidx + 1) * sizeof(char*));
+			break;
+
+		case 'f':
+			fuse_argv[argidx++] = "-f";
+			fuse_argv = xrealloc(fuse_argv, (argidx + 1) * sizeof(char*));
+			break;
+		}
+	}
+
+	args = loptend;
 
 	if (!args || !args->next || args->next->next) {
 		builtin_usage();
@@ -649,13 +664,12 @@ static int booze_builtin(WORD_LIST* args)
 	if (set_up_handlers(args->word->word))
 		return EX_BADUSAGE;
 
-	fuse_argv[1] = args->next->word->word;
+	fuse_argv[argidx] = args->next->word->word;
 
 	if (fuse_env_hack())
 		return EXECUTION_FAILURE;
 
-	status = fuse_main(sizeof(fuse_argv)/sizeof(fuse_argv[0]), fuse_argv,
-	                   &booze_ops, NULL);
+	status = fuse_main(argidx + 1, fuse_argv, &booze_ops, NULL);
 
 	tear_down_handlers();
 
@@ -665,6 +679,10 @@ static int booze_builtin(WORD_LIST* args)
 static char* booze_doc[] = {
 	"Mount a booze filesystem at MOUNTPOINT using functions in FN_ASSOC.",
 	"",
+	"Options:",
+	"  -d: debug mode (implies -f)",
+	"  -f: run in foreground",
+	"",
 	"FN_ASSOC must be an associative array.  Any keys it contains that match",
 	"one of the following FUSE operation names will cause that FUSE operation",
 	"to be implemented by the bash function named by the value corresponding",
@@ -673,7 +691,7 @@ static char* booze_doc[] = {
 #define FUSEOP(op) "    "#op,
 #include "ops.def"
 	"",
-	"If for any reason this doesn't seem like a good idea, the user is ",
+	"If for any reason this doesn't seem like a good idea, the user is",
 	"encouraged to drink until it does.",
 	NULL,
 };
@@ -683,6 +701,6 @@ struct builtin booze_struct = {
 	booze_builtin,
 	BUILTIN_ENABLED,
 	booze_doc,
-	"booze FN_ASSOC MOUNTPOINT",
+	"booze [-df] FN_ASSOC MOUNTPOINT",
 	0,
 };

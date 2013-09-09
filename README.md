@@ -13,8 +13,12 @@ forth between libfuse and bash functions in your script.
 
 Its `help` text gives a basic description of how to use it:
 
-    booze: booze FN_ASSOC MOUNTPOINT
+    booze: booze [-df] FN_ASSOC MOUNTPOINT
         Mount a booze filesystem at MOUNTPOINT using functions in FN_ASSOC.
+
+        Options:
+          -d: debug mode (implies -f)
+          -f: run in foreground
 
         FN_ASSOC must be an associative array.  Any keys it contains that match
         one of the following FUSE operation names will cause that FUSE operation
