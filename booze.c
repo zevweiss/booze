@@ -17,7 +17,6 @@
 #include "shell.h"
 #include "bashgetopt.h"
 #include "common.h"
-#include "execute_cmd.h"
 #include "error.h"
 
 #define __wdname(name, num) __##name##_word_desc##num
