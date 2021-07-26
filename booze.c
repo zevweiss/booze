@@ -13,11 +13,11 @@
 
 #include <fuse.h>
 
-#include "builtins.h"
-#include "shell.h"
-#include "bashgetopt.h"
-#include "common.h"
-#include "error.h"
+#include <builtins.h>
+#include <shell.h>
+#include <bashgetopt.h>
+#include <common.h>
+#include <error.h>
 
 #define __wdname(name, num) __##name##_word_desc##num
 #define __wlname(name, num) __##name##_word_list##num
