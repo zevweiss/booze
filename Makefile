@@ -21,3 +21,7 @@ FUSEFLAGS = $(shell pkg-config fuse --cflags --libs)
 
 booze.so: booze.c
 	$(CC) $(CFLAGS) $(FUSEFLAGS) -o $@ $<
+
+.PHONY: clean
+clean:
+	rm -f booze.so
