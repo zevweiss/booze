@@ -1,10 +1,9 @@
 
 CC = gcc
 
-INCLUDES = /usr/include/bash /usr/include/bash/builtins
 DEFINES = _GNU_SOURCE
 
-LIBFLAGS = -shared -fPIC
+LIBFLAGS = -shared
 CWARN = -Wall
 COPT = -O0
 ifneq ($(DEBUG),)
@@ -12,15 +11,15 @@ ifneq ($(DEBUG),)
 else
 	CDEBUG =
 endif
-CINCLUDES = $(foreach d,$(INCLUDES),-I$(d))
+
 CDEFINES = $(foreach d,$(DEFINES),-D$(d))
 
-CFLAGS = $(CWARN) $(COPT) $(CINCLUDES) $(CDEFINES) $(LIBFLAGS) $(CDEBUG)
+CFLAGS = $(CWARN) $(COPT) $(CDEFINES) $(LIBFLAGS) $(CDEBUG)
 
-FUSEFLAGS = $(shell pkg-config fuse --cflags --libs)
+EXTRAFLAGS = $(shell pkg-config --cflags --libs fuse bash)
 
 booze.so: booze.c
-	$(CC) $(CFLAGS) $(FUSEFLAGS) -o $@ $<
+	$(CC) $(CFLAGS) $(EXTRAFLAGS) -o $@ $<
 
 .PHONY: clean
 clean:
